@@ -8,8 +8,8 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc != 4) {
-        std::cerr << "Usage: client <address> <port> <filePath>\n";
+    if (argc != 3) {
+        std::cerr << "Usage: client <address> <port>\n";
         return 1;
     }
 
@@ -17,14 +17,19 @@ int main(int argc, char* argv[])
 
     auto address = argv[1];
     auto port = argv[2];
-    auto filePath = argv[3];
 
     try {
         boost::asio::io_service ioService;
 
         boost::asio::ip::tcp::resolver resolver(ioService);
         auto endpointIterator = resolver.resolve({ address, port });
-        Client client(ioService, endpointIterator, filePath);
+
+		std::vector<std::string> file_paths;
+		choose_files(file_paths);
+		std::vector<Client *> clients;
+		for (auto s : file_paths) {
+			clients.push_back(new Client(ioService, endpointIterator, s));
+		}
 
         ioService.run();
     } catch (std::fstream::failure& e) {

@@ -6,6 +6,31 @@
 
 #include "server.h"
 
+void print_dir(std::string const& path, std::string const& präfix = ""){
+	std::cout << präfix << char(200) << path.substr(path.find_last_of('\\')+1)<< '\\' << std::endl;
+	
+	boost::filesystem::directory_iterator end_itr;
+	for (boost::filesystem::directory_iterator itr(path); itr != end_itr;)
+	{
+		auto curr_path = itr->path();
+
+		std::string curr_prefix;
+		if (++itr == end_itr) {
+			curr_prefix = "   " + präfix + char(200);
+		}
+		else {
+			curr_prefix = "   " + präfix + char(204);
+		}
+
+		if (is_regular_file(curr_path)) {
+			std::string current_file = curr_path.string();
+			std::cout << curr_prefix << current_file.substr(current_file.find_last_of('\\') + 1) << std::endl;
+		}
+		if (is_directory(curr_path)) {
+			print_dir(curr_path.string(), "   " + präfix);
+		}
+	}
+}
 
 Session::Session(TcpSocket t_socket)
     : m_socket(std::move(t_socket))
@@ -63,10 +88,7 @@ void Session::processRead(size_t t_bytesTransferred)
 
 void Session::readData(std::istream &stream)
 {
-	std::getline(stream, m_fileName, '.');
-	std::string file_extension;
-    stream >> file_extension;
-	m_fileName += '.' + file_extension;
+    stream >> m_fileName;
     stream >> m_fileSize;
     stream.read(m_buf.data(), 2);
 
@@ -118,9 +140,12 @@ Server::Server(IoService& t_ioService, short t_port, std::string const& t_workDi
     m_acceptor(t_ioService, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), t_port)),
     m_workDirectory(t_workDirectory)
 {
-    std::cout << "Server started\n";
+    std::cout << "Server started" << std::endl << std::endl;
 
     createWorkDirectory();
+
+	std::cout << "Contents of working directory:" << std::endl;
+	print_dir(m_workDirectory);
 
     doAccept();
 }
