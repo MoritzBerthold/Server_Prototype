@@ -7,7 +7,7 @@
 #include <boost/log/trivial.hpp>
 
 #include "client.h"
-#include "..\Common\nfd.h"
+#include "nfd.h"
 
 std::string replace_all(std::string const& s, const char o, const char n) {
 	std::stringstream ss;
@@ -106,7 +106,7 @@ void Client::doWriteFile(const boost::system::error_code& t_ec)
             }
             std::stringstream ss;
             ss << "Send " << m_sourceFile.gcount() << " bytes, total: "
-                << m_sourceFile.tellg() << " bytes";
+                << (float)m_sourceFile.tellg() / (1024*1024) << " Mbytes";
             BOOST_LOG_TRIVIAL(trace) << ss.str();
             std::cout << ss.str() << std::endl;
 
