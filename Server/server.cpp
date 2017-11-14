@@ -6,11 +6,11 @@
 
 #include "server.h"
 
-void print_dir(std::string const& path, std::string const& präfix = ""){
+void print_dir(std::string const& path, std::string const& präfix = "", int depth = 0){
 	std::cout << präfix << char(200) << path.substr(path.find_last_of('\\')+1)<< '\\' << std::endl;
 	
 	boost::filesystem::directory_iterator end_itr;
-	for (boost::filesystem::directory_iterator itr(path); itr != end_itr;)
+	for (boost::filesystem::directory_iterator itr(path); itr != end_itr && depth < 1;)
 	{
 		auto curr_path = itr->path();
 
@@ -27,7 +27,7 @@ void print_dir(std::string const& path, std::string const& präfix = ""){
 			std::cout << curr_prefix << current_file.substr(current_file.find_last_of('\\') + 1) << std::endl;
 		}
 		if (is_directory(curr_path)) {
-			print_dir(curr_path.string(), "   " + präfix);
+			print_dir(curr_path.string(), "   " + präfix, depth + 1);
 		}
 	}
 }
@@ -130,6 +130,7 @@ void Session::do_tcp_read_file_content(size_t t_bytesTransferred)
 
         if (output_filestream_.tellp() >= static_cast<std::streamsize>(file_size_)) {
             std::cout << "Received file: " << file_name_ << std::endl;
+			output_filestream_.close();
             return;
         }
     }
@@ -201,12 +202,15 @@ void Session::cd(std::string dir)
 	if (!exists(dir_path)) {
 		BOOST_LOG_TRIVIAL(error) << "Unable to change to directory: " << dir_name;
 		std::cout << "Unable to change to directory: " << dir_name << std::endl;
-		std::cout << "Contents of current directory:" << std::endl;
-		print_dir(current_path().string());
 		return;
 	}
-
-	current_path(dir_path);
+	else {
+		std::cout << "Changed working directory to: " << dir_path.string() << std::endl;
+		current_path(dir_path);
+	}
+	std::cout << "Contents of current directory:" << std::endl;
+	print_dir(current_path().string());
+		
 }
 
 void Session::mkdir(std::string name)
@@ -221,10 +225,42 @@ void Session::mkdir(std::string name)
 
 	auto dir_path = path(current_path().string() + '\\' + dir_name);
 	if (!exists(dir_path) && !create_directory(dir_path))
-		BOOST_LOG_TRIVIAL(error) << "Couldn't create directory: " << name;
+		BOOST_LOG_TRIVIAL(error) << "Couldn't create directory: " << dir_name;
+	else
+		std::cout << "Created subdirectory: " << dir_name << std::endl;
 	std::cout << "Contents of current directory:" << std::endl;
 	print_dir(current_path().string());
 	return;
 }
 
+udp_server::udp_server(IoService & io_service, short port)
+	: socket_(io_service, udp::endpoint(udp::v4(), port))
+{
+}
 
+void udp_server::do_receive()
+{
+	socket_.async_receive_from(
+		boost::asio::buffer(data_, max_length), sender_endpoint_,
+		[this](boost::system::error_code ec, std::size_t bytes_recvd)
+	{
+		if (!ec && bytes_recvd > 0)
+		{
+			do_send(bytes_recvd);
+		}
+		else
+		{
+			do_receive();
+		}
+	});
+}
+
+void udp_server::do_send(std::size_t length)
+{
+	socket_.async_send_to(
+		boost::asio::buffer(data_, length), sender_endpoint_,
+		[this](boost::system::error_code /*ec*/, std::size_t /*bytes_sent*/)
+	{
+		do_receive();
+	});
+}

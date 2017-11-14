@@ -24,12 +24,7 @@ int main(int argc, char* argv[])
         boost::asio::ip::tcp::resolver resolver(ioService);
         auto endpointIterator = resolver.resolve({ address, port });
 
-		std::vector<std::string> file_paths;
-		choose_files(file_paths);
-		std::vector<Client *> clients;
-		for (auto s : file_paths) {
-			clients.push_back(new Client(ioService, endpointIterator, s));
-		}
+		Client client(ioService, endpointIterator, "");
 
         ioService.run();
     } catch (std::fstream::failure& e) {

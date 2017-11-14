@@ -61,3 +61,24 @@ private:
     std::string root_directory_;
 	std::string working_directory_;
 };
+
+using boost::asio::ip::udp;
+
+class udp_server {
+public:
+	using UdpSocket = boost::asio::ip::udp::socket;
+	using UdpEndpoint = boost::asio::ip::udp::endpoint;
+	using IoService = boost::asio::io_service;
+
+	udp_server(IoService & io_service, short port);
+
+	void do_receive();
+
+	void do_send(std::size_t length);
+
+private:
+	UdpSocket socket_;
+	UdpEndpoint sender_endpoint_;
+	enum { max_length = 1024 };
+	char data_[max_length];
+};
