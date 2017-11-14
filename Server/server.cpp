@@ -33,105 +33,116 @@ void print_dir(std::string const& path, std::string const& präfix = ""){
 }
 
 Session::Session(TcpSocket t_socket)
-    : m_socket(std::move(t_socket))
+    : tcp_socket_(std::move(t_socket))
 {
 }
 
 
-void Session::doRead()
+void Session::do_tcp_read()
 {
     auto self = shared_from_this();
-    async_read_until(m_socket, m_requestBuf_, "\n\n",
+    async_read_until(tcp_socket_, request_buffer_, "\n\n",
         [this, self](boost::system::error_code ec, size_t bytes)
         {
             if (!ec)
-                processRead(bytes);
+                do_tcp_process_read(bytes);
             else
-                handleError(__FUNCTION__, ec);
+                handle_error(__FUNCTION__, ec);
         });
 }
 
 
-void Session::processRead(size_t t_bytesTransferred)
+void Session::do_tcp_process_read(size_t t_bytesTransferred)
 {
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << "(" << t_bytesTransferred << ")" 
-        << ", in_avail = " << m_requestBuf_.in_avail() << ", size = " 
-        << m_requestBuf_.size() << ", max_size = " << m_requestBuf_.max_size() << ".";
+        << ", in_avail = " << request_buffer_.in_avail() << ", size = " 
+        << request_buffer_.size() << ", max_size = " << request_buffer_.max_size() << ".";
 
-    std::istream requestStream(&m_requestBuf_);
-    readData(requestStream);
+    std::istream requestStream(&request_buffer_);
+    do_tcp_read_data(requestStream);
 
-    auto pos = m_fileName.find_last_of('\\');
+    auto pos = file_name_.find_last_of('\\');
     if (pos != std::string::npos)
-        m_fileName = m_fileName.substr(pos + 1);
+        file_name_ = file_name_.substr(pos + 1);
 
-    createFile();
+    create_file();
 
     // write extra bytes to file
     do {
-        requestStream.read(m_buf.data(), m_buf.size());
+        requestStream.read(buffer_.data(), buffer_.size());
         //BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << " write " << requestStream.gcount() << " bytes.";
-        m_outputFile.write(m_buf.data(), requestStream.gcount());
+        output_filestream_.write(buffer_.data(), requestStream.gcount());
     } while (requestStream.gcount() > 0);
 
     auto self = shared_from_this();
-    m_socket.async_read_some(boost::asio::buffer(m_buf.data(), m_buf.size()),
+    tcp_socket_.async_read_some(boost::asio::buffer(buffer_.data(), buffer_.size()),
         [this, self](boost::system::error_code ec, size_t bytes)
         {
             if (!ec)
-                doReadFileContent(bytes);
+                do_tcp_read_file_content(bytes);
             else
-                handleError(__FUNCTION__, ec);
+                handle_error(__FUNCTION__, ec);
         });
 }
 
 
-void Session::readData(std::istream &stream)
+void Session::do_tcp_read_data(std::istream &stream)
 {
-	std::string read_mode;
-	stream >> read_mode;
-	BOOST_LOG_TRIVIAL(trace) << "Received request of type: " << read_mode;
-    stream >> m_fileName;
-    stream >> m_fileSize;
-    stream.read(m_buf.data(), 2);
+	stream >> request_type_;
+	BOOST_LOG_TRIVIAL(trace) << "Received request of type: " << request_type_;
+	if (request_type_ == "FILE_WRITE") {
+		stream >> file_name_;
+		stream >> file_size_;
+		stream.read(buffer_.data(), 2);
 
-    BOOST_LOG_TRIVIAL(trace) << m_fileName << " size is " << m_fileSize
-        << ", tellg = " << stream.tellg();
+		BOOST_LOG_TRIVIAL(trace) << file_name_ << " size is " << file_size_
+			<< ", tellg = " << stream.tellg();
+	}
+	if (request_type_ == "CHANGE_DIRECTORY") {
+		std::string dir;
+		stream >> dir;
+		cd(dir);
+	}
+	if (request_type_ == "MAKE_DIRECTORY") {
+		std::string dir;
+		stream >> dir;
+		mkdir(dir);
+	}
 }
 
 
-void Session::createFile()
+void Session::create_file()
 {
-    m_outputFile.open(m_fileName, std::ios_base::binary);
-    if (!m_outputFile) {
-        BOOST_LOG_TRIVIAL(error) << __LINE__ << ": Failed to create: " << m_fileName;
+    output_filestream_.open(file_name_, std::ios_base::binary);
+    if (!output_filestream_) {
+        BOOST_LOG_TRIVIAL(error) << __LINE__ << ": Failed to create: " << file_name_;
         return;
     }
 }
 
 
-void Session::doReadFileContent(size_t t_bytesTransferred)
+void Session::do_tcp_read_file_content(size_t t_bytesTransferred)
 {
     if (t_bytesTransferred > 0) {
-        m_outputFile.write(m_buf.data(), static_cast<std::streamsize>(t_bytesTransferred));
+        output_filestream_.write(buffer_.data(), static_cast<std::streamsize>(t_bytesTransferred));
 
-        BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << " recv " << m_outputFile.tellp() << " bytes";
+        BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << " recv " << output_filestream_.tellp() << " bytes";
 
-        if (m_outputFile.tellp() >= static_cast<std::streamsize>(m_fileSize)) {
-            std::cout << "Received file: " << m_fileName << std::endl;
+        if (output_filestream_.tellp() >= static_cast<std::streamsize>(file_size_)) {
+            std::cout << "Received file: " << file_name_ << std::endl;
             return;
         }
     }
     auto self = shared_from_this();
-    m_socket.async_read_some(boost::asio::buffer(m_buf.data(), m_buf.size()),
+    tcp_socket_.async_read_some(boost::asio::buffer(buffer_.data(), buffer_.size()),
         [this, self](boost::system::error_code ec, size_t bytes)
         {
-            doReadFileContent(bytes);
+            do_tcp_read_file_content(bytes);
         });
 }
 
 
-void Session::handleError(std::string const& t_functionName, boost::system::error_code const& t_ec)
+void Session::handle_error(std::string const& t_functionName, boost::system::error_code const& t_ec)
 {
     BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << " in " << t_functionName << " due to " 
         << t_ec << " " << t_ec.message() << std::endl;
@@ -139,39 +150,81 @@ void Session::handleError(std::string const& t_functionName, boost::system::erro
 
 
 Server::Server(IoService& t_ioService, short t_port, std::string const& t_workDirectory)
-    : m_socket(t_ioService),
-    m_acceptor(t_ioService, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), t_port)),
-    m_workDirectory(t_workDirectory)
+    : tcp_socket_(t_ioService),
+    tcp_acceptor_(t_ioService, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), t_port)),
+    root_directory_(t_workDirectory), working_directory_(t_workDirectory)
 {
     std::cout << "Server started" << std::endl << std::endl;
 
-    createWorkDirectory();
+    create_root_directory();
 
-	std::cout << "Contents of working directory:" << std::endl;
-	print_dir(m_workDirectory);
+	std::cout << "Contents of root directory:" << std::endl;
+	print_dir(working_directory_);
 
-    doAccept();
+    do_tcp_accept();
 }
 
 
-void Server::doAccept()
+void Server::do_tcp_accept()
 {
-    m_acceptor.async_accept(m_socket,
+    tcp_acceptor_.async_accept(tcp_socket_,
         [this](boost::system::error_code ec)
     {
         if (!ec)
-            std::make_shared<Session>(std::move(m_socket))->start();
+            std::make_shared<Session>(std::move(tcp_socket_))->start();
 
-        doAccept();
+        do_tcp_accept();
     });
 }
 
-
-void Server::createWorkDirectory()
+void Server::create_root_directory()
 {
     using namespace boost::filesystem;
-    auto currentPath = path(m_workDirectory);
+    auto currentPath = path(root_directory_);
     if (!exists(currentPath) && !create_directory(currentPath))
-        BOOST_LOG_TRIVIAL(error) << "Coudn't create working directory: " << m_workDirectory;
+        BOOST_LOG_TRIVIAL(error) << "Couldn't create working directory: " << root_directory_;
     current_path(currentPath);
+	working_directory_ = currentPath.string();
 }
+
+void Session::cd(std::string dir)
+{
+	using namespace boost::filesystem;
+
+	std::string dir_name;
+	if (dir.find_last_of('\\') == std::string::npos)
+		dir_name = dir;
+	else
+		dir_name = dir.substr(dir.find_last_of('\\'));
+
+	auto dir_path = path(current_path().string() + '\\' + dir_name);
+	if (!exists(dir_path)) {
+		BOOST_LOG_TRIVIAL(error) << "Unable to change to directory: " << dir_name;
+		std::cout << "Unable to change to directory: " << dir_name << std::endl;
+		std::cout << "Contents of current directory:" << std::endl;
+		print_dir(current_path().string());
+		return;
+	}
+
+	current_path(dir_path);
+}
+
+void Session::mkdir(std::string name)
+{
+	using namespace boost::filesystem;
+
+	std::string dir_name;
+	if(name.find_last_of('\\') == std::string::npos)
+		dir_name = name;
+	else
+		dir_name = name.substr(name.find_last_of('\\'));
+
+	auto dir_path = path(current_path().string() + '\\' + dir_name);
+	if (!exists(dir_path) && !create_directory(dir_path))
+		BOOST_LOG_TRIVIAL(error) << "Couldn't create directory: " << name;
+	std::cout << "Contents of current directory:" << std::endl;
+	print_dir(current_path().string());
+	return;
+}
+
+

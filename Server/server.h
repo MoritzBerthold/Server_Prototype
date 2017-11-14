@@ -17,29 +17,32 @@ public:
 
     void start()
     {
-        doRead();
+        do_tcp_read();
     }
 
 private:
-    void doRead();
-    void processRead(size_t t_bytesTransferred);
-    void createFile();
-    void readData(std::istream &stream);
-    void doReadFileContent(size_t t_bytesTransferred);
-    void handleError(std::string const& t_functionName, boost::system::error_code const& t_ec);
+    void do_tcp_read();
+    void do_tcp_process_read(size_t t_bytesTransferred);
+    void create_file();
+    void do_tcp_read_data(std::istream &stream);
+    void do_tcp_read_file_content(size_t t_bytesTransferred);
+    void handle_error(std::string const& t_functionName, boost::system::error_code const& t_ec);
+	void cd(std::string dir);
+	void mkdir(std::string name);
 
-
-    TcpSocket m_socket;
+    TcpSocket tcp_socket_;
     enum { MaxLength = 40960 };
-    std::array<char, MaxLength> m_buf;
-    boost::asio::streambuf m_requestBuf_;
-    std::ofstream m_outputFile;
-    size_t m_fileSize;
-    std::string m_fileName;
+    std::array<char, MaxLength> buffer_;
+    boost::asio::streambuf request_buffer_;
+    std::ofstream output_filestream_;
+    size_t file_size_;
+    std::string file_name_;
+	std::string request_type_;
 };
 
 
 class Server
+	: public std::enable_shared_from_this<Session>
 {
 public:
     using TcpSocket = boost::asio::ip::tcp::socket;
@@ -49,11 +52,12 @@ public:
     Server(IoService& t_ioService, short t_port, std::string const& t_workDirectory);
 
 private:
-    void doAccept();
-    void createWorkDirectory();
+    void do_tcp_accept();
+    void create_root_directory();
 
-    TcpSocket m_socket;
-    TcpAcceptor m_acceptor;
+    TcpSocket tcp_socket_;
+    TcpAcceptor tcp_acceptor_;
 
-    std::string m_workDirectory;
+    std::string root_directory_;
+	std::string working_directory_;
 };

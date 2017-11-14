@@ -11,6 +11,7 @@ class Client
 {
 public:
     using IoService = boost::asio::io_service;
+	using TcpAcceptor = boost::asio::ip::tcp::acceptor;
     using TcpResolver = boost::asio::ip::tcp::resolver;
     using TcpResolverIterator = TcpResolver::iterator;
     using TcpSocket = boost::asio::ip::tcp::socket;
@@ -19,20 +20,25 @@ public:
 		std::string const &t_path);
 
 private:
-    void openFile(std::string const &t_filepath);
-    void doConnect();
-    void doWriteFile(const boost::system::error_code& t_ec);
-	void routine();
+    void open_file(std::string const &t_filepath);
+	void do_tcp_cd(std::string const &dir);
+	void do_tcp_mkdir(std::string const &dir);
+	void do_tcp_accept();
+    void do_tcp_connect();
+    void do_tcp_write_file(const boost::system::error_code& t_ec);
+	void do_tcp_write_request(const boost::system::error_code &ec);
+	void tcp_routine();
 	template<class Buffer>
-    void writeBuffer(Buffer& t_buffer);
+    void write_buffer(Buffer& t_buffer);
 
 
-    TcpResolver m_ioService;
-    TcpSocket m_socket;
-    TcpResolverIterator m_endpointIterator;
+	TcpAcceptor tcp_acceptor_;
+    TcpResolver tcp_resolver_;
+    TcpSocket tcp_socket_;
+    TcpResolverIterator endpoint_iterator_;
     enum { MessageSize = 16 * 1024 };
-    std::array<char, MessageSize> m_buf;
-    boost::asio::streambuf m_request;
-    std::ifstream m_sourceFile;
-    std::string m_path;
+    std::array<char, MessageSize> buffer_;
+    boost::asio::streambuf request_;
+    std::ifstream source_filestream_;
+    std::string path_;
 };
