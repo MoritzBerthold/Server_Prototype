@@ -30,7 +30,7 @@ private:
     TcpResolver m_ioService;
     TcpSocket m_socket;
     TcpResolverIterator m_endpointIterator;
-    enum { MessageSize = 1 * 1024 };
+    enum { MessageSize = 16 * 1024 };
     std::array<char, MessageSize> m_buf;
     boost::asio::streambuf m_request;
     std::ifstream m_sourceFile;

@@ -74,8 +74,8 @@ void Client::openFile(std::string const &t_filepath)
 
     std::ostream requestStream(&m_request);
     boost::filesystem::path p(m_path);
-    requestStream << p.filename().string() << "\n" << fileSize << "\n\n";
-    BOOST_LOG_TRIVIAL(trace) << "Request size: " << m_request.size();
+    requestStream << "FILE_WRITE\n" << p.filename().string() << "\n" << fileSize << "\n\n";
+    //BOOST_LOG_TRIVIAL(trace) << "Request size: " << m_request.size();
 }
 
 void Client::doConnect()
@@ -105,10 +105,11 @@ void Client::doWriteFile(const boost::system::error_code& t_ec)
                 throw std::fstream::failure(msg);
             }
             std::stringstream ss;
-            ss << "Send " << m_sourceFile.gcount() << " bytes, total: "
-                << (float)m_sourceFile.tellg() / (1024*1024) << " Mbytes";
-            BOOST_LOG_TRIVIAL(trace) << ss.str();
-            std::cout << ss.str() << std::endl;
+			if (m_sourceFile.tellg() < 0) {
+				ss << "Successfully sent file " << m_path << " to server at " << m_endpointIterator->host_name() << ":" << m_endpointIterator->service_name();
+				BOOST_LOG_TRIVIAL(trace) << ss.str();
+				std::cout << ss.str() << std::endl;
+			}
 
             auto buf = boost::asio::buffer(m_buf.data(), static_cast<size_t>(m_sourceFile.gcount()));
             writeBuffer(buf);

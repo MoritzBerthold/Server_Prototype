@@ -70,7 +70,7 @@ void Session::processRead(size_t t_bytesTransferred)
     // write extra bytes to file
     do {
         requestStream.read(m_buf.data(), m_buf.size());
-        BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << " write " << requestStream.gcount() << " bytes.";
+        //BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << " write " << requestStream.gcount() << " bytes.";
         m_outputFile.write(m_buf.data(), requestStream.gcount());
     } while (requestStream.gcount() > 0);
 
@@ -88,6 +88,9 @@ void Session::processRead(size_t t_bytesTransferred)
 
 void Session::readData(std::istream &stream)
 {
+	std::string read_mode;
+	stream >> read_mode;
+	BOOST_LOG_TRIVIAL(trace) << "Received request of type: " << read_mode;
     stream >> m_fileName;
     stream >> m_fileSize;
     stream.read(m_buf.data(), 2);
