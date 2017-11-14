@@ -5,6 +5,7 @@
 #include "server.h"
 #include "../Common/logger.h"
 
+using namespace server;
 
 int main(int argc, char* argv[])
 {
@@ -18,7 +19,7 @@ int main(int argc, char* argv[])
     try {
         boost::asio::io_service ioService;
 
-        Server server(ioService, std::stoi(argv[1]), argv[2]);
+        tcp_server server(ioService, std::stoi(argv[1]), argv[2]);
 		udp_server udp_server_(ioService, std::stoi(argv[1]));
 
         ioService.run();
